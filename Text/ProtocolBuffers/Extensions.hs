@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs,MultiParamTypeClasses,FunctionalDependencies,FlexibleInstances,DeriveDataTypeable,ScopedTypeVariables #-}
+{-# LANGUAGE GADTs,MultiParamTypeClasses,FunctionalDependencies,FlexibleInstances,DeriveDataTypeable,ScopedTypeVariables,StandaloneDeriving #-}
 -- | The "Extensions" module contributes two main things.  The first
 -- is the definition and implementation of extensible message
 -- features.  This means that the 'ExtField' data type is exported but
@@ -38,7 +38,7 @@ import Data.Maybe(fromMaybe,isJust)
 import Data.Monoid(mappend,mconcat)
 import Data.Sequence((|>),(><),viewl,ViewL(..))
 import qualified Data.Sequence as Seq(singleton,null,empty)
-import Data.Typeable(Typeable(typeOf),Typeable1(typeOf1),Typeable2(typeOf2),TypeRep,mkTyConApp,mkTyCon3,cast)
+import Data.Typeable (Typeable,Typeable1,Typeable2,typeOf,typeOf1,typeOf2,TypeRep,mkTyConApp,mkTyCon3,cast)
 import Data.Data(Data(gfoldl,gunfold,toConstr),Constr,DataType,Fixity(Prefix),mkDataType,mkConstr,constrIndex,dataTypeOf)
 
 import Text.ProtocolBuffers.Basic
@@ -79,6 +79,8 @@ err msg = error $ "Text.ProtocolBuffers.Extensions error\n"++msg
 data Key c msg v where
   Key :: (ExtKey c,ExtendMessage msg,GPB v) => FieldId -> FieldType -> (Maybe v) -> Key c msg v
 
+deriving instance Typeable Key
+
 -- | This allows reflection, in this case it gives the numerical
 -- 'FieldId' of the key, from 1 to 2^29-1 (excluding 19,000 through
 -- 19,999).
@@ -96,9 +98,6 @@ getKeyFieldType (Key _ ft _) = ft
 -- that type.
 getKeyDefaultValue :: Key c msg v -> v
 getKeyDefaultValue (Key _ _ md) = fromMaybe defaultValue md
-
-instance Typeable1 c => Typeable2 (Key c) where
-  typeOf2 _ = mkTyConApp (mkTyCon3 "protocol-buffers" "Text.ProtocolBuffers.Extensions" "Key") [typeOf1 (undefined :: c ())]
 
 instance (Typeable1 c, Typeable msg, Typeable v) => Show (Key c msg v) where
   show key@(Key fieldId fieldType maybeDefaultValue) =
@@ -149,7 +148,7 @@ data DummyMessageType deriving (Typeable)
 -- | ExtField is a newtype'd map from the numeric FieldId key to the
 -- ExtFieldValue.  This allows for the needed class instances.
 newtype ExtField = ExtField (Map FieldId ExtFieldValue)
-  deriving (Eq,Ord,Show)
+  deriving (Eq,Ord,Show,Typeable)
 
 -- Used only in gfoldl for Data instance of ExtField
 dataToList :: ExtField -> [ExtDataPair]
@@ -172,9 +171,6 @@ dataToList (ExtField ef) = map toEDP . M.toList $ ef where
 dataFromList :: [ExtDataPair] -> ExtField
 dataFromList = ExtField . M.fromList . map fromEDP where
   fromEDP (ExtDataPair fid eps) = (fid,ExtFromWire eps)
-
-instance Typeable ExtField where
-  typeOf _ = tr_ExtField
 
 tr_ExtField :: TypeRep
 tr_ExtField = mkTyConApp (mkTyCon3 "protocol-buffers" "Text.ProtocolBuffers.Extensions" "ExtField") []
